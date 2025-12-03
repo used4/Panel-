@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html dir='rtl'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل سريع</title>
+    <!-- Video.js CSS -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+    <!-- Feather Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        #player-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* إخفاء Video.js Loading */
+        .vjs-loading-spinner {
+            display: none !important;
+        }
+
+        .video-js {
+            width: 100% !important;
+            height: 100% !important;
+            background-color: #000;
+        }
+
+        /* تحسين الأداء */
+        .video-js .vjs-tech {
+            object-fit: cover !important;
+        }
+
+        /* إخفاء شاشة التحميل */
+        #loading-overlay {
+            display: none !important;
+        }
+
+        /* شاشة تحميل فورية */
+        #instant-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            color: white;
+            text-align: center;
+            display: none;
+        }
+
+        #instant-loading.show {
+            display: block;
+            animation: fadeOut 0.5s ease 0.3s forwards;
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; visibility: hidden; }
+        }
+
+        /* أزرار التحكم السريعة */
+        #quick-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .quick-btn {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-btn:hover {
+            background: rgba(255, 193, 7, 0.3);
+            transform: scale(1.05);
+        }
+
+        /* قائمة القنوات */
+        #channels-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            z-index: 100;
+            max-height: 80vh;
+            overflow-y: auto;
+            min-width: 200px;
+            display: none;
+        }
+
+        #channels-panel.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .channel-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 15px;
+            color: white;
+            margin: 5px 0;
+            width: 100%;
+            text-align: right;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .channel-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .channel-btn.active {
+            background: rgba(255, 193, 7, 0.3);
+            color: #ffc107;
+        }
+
+        /* إخفاء بعض عناصر Video.js للسرعة */
+        .vjs-control-bar {
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .vjs-control-bar:hover {
+            opacity: 1;
+        }
+
+        /* شاشة التحميل البسيطة */
+        #simple-loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            transition: opacity 0.3s;
+        }
+
+        #simple-loader.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loader-ring {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #ffc107;
+            border-radius: 50%;
+            animation: spin-fast 0.8s linear infinite;
+        }
+
+        @keyframes spin-fast {
+            to { transform: rotate(360deg); }
+        }
+
+        /* شاشة الخطأ السريعة */
+        #error-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 70, 70, 0.3);
+            text-align: center;
+            display: none;
+            z-index: 1000;
+            min-width: 300px;
+        }
+
+        #error-panel.show {
+            display: block;
+        }
+
+        .error-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* زر القنوات */
+        #channels-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            z-index: 99;
+        }
+
+        /* معلومات القناة */
+        #channel-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 25px;
+            color: white;
+            font-size: 14px;
+            z-index: 99;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="player-container">
+        <!-- تحميل سريع -->
+        <div id="simple-loader">
+            <div class="loader-ring"></div>
+        </div>
+
+        <!-- Video.js Player -->
+        <video id="my-video" class="video-js vjs-default-skin" 
+               autoplay muted playsinline preload="auto" 
+               crossorigin="anonymous">
+        </video>
+
+        <!-- أزرار التحكم السريعة -->
+        <div id="quick-controls">
+            <button class="quick-btn" id="play-pause-btn" title="تشغيل/إيقاف">
+                <i data-feather="play"></i>
+            </button>
+            <button class="quick-btn" id="fullscreen-btn" title="ملء الشاشة">
+                <i data-feather="maximize"></i>
+            </button>
+            <button class="quick-btn" id="mute-btn" title="كتم الصوت">
+                <i data-feather="volume-2"></i>
+            </button>
+        </div>
+
+        <!-- زر القنوات -->
+        <button id="channels-toggle">
+            <i data-feather="tv"></i>
+        </button>
+
+        <!-- معلومات القناة -->
+        <div id="channel-info">القناة 1</div>
+
+        <!-- قائمة القنوات -->
+        <div id="channels-panel">
+            <div style="color: white; margin-bottom: 15px; font-size: 18px; text-align: center;">
+                📺 القنوات
+            </div>
+            <div id="channels-list"></div>
+        </div>
+
+        <!-- شاشة الخطأ -->
+        <div id="error-panel">
+            <i data-feather="wifi-off" style="color: #ff4757; width: 50px; height: 50px;"></i>
+            <h3 style="color: white; margin: 15px 0;">لا يوجد اتصال</h3>
+            <p style="color: #ccc;">تحقق من اتصالك بالإنترنت</p>
+            <button class="error-btn" id="retry-btn">إعادة المحاولة</button>
+        </div>
+    </div>
+
+    <!-- Video.js Script -->
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <!-- HLS Plugin -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.15.0/videojs-contrib-hls.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // قنوات سريعة (مباشرة)
+            const channels = [
+                { name: "القناة 1", url: "https://py.dencreak.com/bn_s_fhd1.m3u8" },
+                { name: "القناة 2", url: "https://py.dencreak.com/bn_s_fhd2.m3u8" },
+                { name: "القناة 3", url: "https://py.dencreak.com/bn_s_fhd3.m3u8" },
+                { name: "القناة 4", url: "https://py.dencreak.com/bn_s_fhd4.m3u8" },
+                { name: "القناة 5", url: "https://py.dencreak.com/bn_s_fhd5.m3u8" },
+                { name: "القناة 6", url: "https://py.dencreak.com/bn_s_fhd6.m3u8" },
+                { name: "القناة 7", url: "https://py.dencreak.com/bn_s_fhd7.m3u8" },
+                { name: "القناة 8", url: "https://py.dencreak.com/bn_s_fhd8.m3u8" },
+                { name: "القناة 9", url: "https://py.dencreak.com/bn_s_fhd9.m3u8" }
+            ];
+
+            // تعريف العناصر
+            const elements = {
+                player: null,
+                simpleLoader: document.getElementById('simple-loader'),
+                channelsPanel: document.getElementById('channels-panel'),
+                channelsList: document.getElementById('channels-list'),
+                channelsToggle: document.getElementById('channels-toggle'),
+                playPauseBtn: document.getElementById('play-pause-btn'),
+                fullscreenBtn: document.getElementById('fullscreen-btn'),
+                muteBtn: document.getElementById('mute-btn'),
+                retryBtn: document.getElementById('retry-btn'),
+                errorPanel: document.getElementById('error-panel'),
+                channelInfo: document.getElementById('channel-info')
+            };
+
+            // تهيئة مشغل Video.js السريع
+            function initVideoPlayer() {
+                elements.player = videojs('my-video', {
+                    controls: true,
+                    autoplay: true,
+                    muted: true, // كتم الصوت للبدء السريع
+                    playsinline: true,
+                    preload: 'auto',
+                    fluid: true,
+                    responsive: true,
+                    liveui: true,
+                    html5: {
+                        hls: {
+                            enableLowInitialPlaylist: true,
+                            smoothQualityChange: true,
+                            overrideNative: true,
+                            bandwidth: 1000000,
+                            limitRenditionByPlayerDimensions: false
+                        },
+                        nativeAudioTracks: false,
+                        nativeVideoTracks: false
+                    },
+                    controlBar: {
+                        volumePanel: {
+                            inline: false
+                        },
+                        children: [
+                            'playToggle',
+                            'volumePanel',
+                            'currentTimeDisplay',
+                            'timeDivider',
+                            'durationDisplay',
+                            'progressControl',
+                            'remainingTimeDisplay',
+                            'fullscreenToggle'
+                        ]
+                    }
+                });
+
+                // إضافة أحداث سريعة
+                setupPlayerEvents();
+            }
+
+            // إعداد أحداث المشغل
+            function setupPlayerEvents() {
+                const player = elements.player;
+
+                // حدث عند بدء التشغيل
+                player.one('play', function() {
+                    console.log('▶️ بدأ التشغيل بسرعة!');
+                    hideLoader();
+                });
+
+                // حدث عند تحميل البيانات
+                player.on('loadeddata', function() {
+                    console.log('✅ تم تحميل الفيديو');
+                    hideLoader();
+                    showChannelInfo();
+                });
+
+                // حدث عند الخطأ
+                player.on('error', function() {
+                    console.error('❌ خطأ في المشغل');
+                    showError();
+                });
+
+                // حدث عند الانتظار
+                player.on('waiting', function() {
+                    console.log('⏳ جاري التحميل...');
+                    showLoader();
+                });
+
+                // حدث عند التشغيل
+                player.on('playing', function() {
+                    console.log('🎬 جاري التشغيل الآن');
+                    hideLoader();
+                    hideError();
+                });
+
+                // حدث عند التوقف
+                player.on('pause', function() {
+                    console.log('⏸️ توقف مؤقت');
+                });
+            }
+
+            // تحميل قناة بسرعة
+            function loadChannelFast(channelIndex) {
+                if (channelIndex < 0 || channelIndex >= channels.length) return;
+                
+                const channel = channels[channelIndex];
+                console.log(`🚀 تحميل سريع: ${channel.name}`);
+                
+                // إظهار تحميل فوري
+                showLoader();
+                
+                // تحديث معلومات القناة
+                elements.channelInfo.textContent = channel.name;
+                elements.channelInfo.style.display = 'block';
+                
+                // تحديث القائمة النشطة
+                updateActiveChannel(channelIndex);
+                
+                // تحميل القناة بسرعة
+                try {
+                    elements.player.src({
+                        src: channel.url,
+                        type: 'application/x-mpegURL',
+                        withCredentials: false
+                    });
+                    
+                    // محاولة التشغيل الفوري
+                    setTimeout(() => {
+                        elements.player.play().catch(e => {
+                            console.log('⚠️ لا يمكن التشغيل التلقائي، يحتاج تفاعل المستخدم');
+                        });
+                    }, 100);
+                    
+                } catch (error) {
+                    console.error('❌ خطأ في تحميل القناة:', error);
+                    showError();
+                }
+            }
+
+            // إظهار/إخفاء شاشة التحميل
+            function showLoader() {
+                elements.simpleLoader.classList.remove('fade-out');
+            }
+
+            function hideLoader() {
+                setTimeout(() => {
+                    elements.simpleLoader.classList.add('fade-out');
+                }, 300);
+            }
+
+            // إظهار/إخفاء الخطأ
+            function showError() {
+                elements.errorPanel.classList.add('show');
+            }
+
+            function hideError() {
+                elements.errorPanel.classList.remove('show');
+            }
+
+            // إظهار/إخفاء قائمة القنوات
+            function toggleChannels() {
+                elements.channelsPanel.classList.toggle('show');
+            }
+
+            // تحديث القناة النشطة
+            function updateActiveChannel(activeIndex) {
+                document.querySelectorAll('.channel-btn').forEach((btn, index) => {
+                    btn.classList.remove('active');
+                    if (index === activeIndex) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
+
+            // إنشاء قائمة القنوات
+            function createChannelsList() {
+                channels.forEach((channel, index) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'channel-btn';
+                    btn.textContent = channel.name;
+                    btn.onclick = () => {
+                        loadChannelFast(index);
+                        toggleChannels();
+                    };
+                    elements.channelsList.appendChild(btn);
+                });
+            }
+
+            // إظهار معلومات القناة
+            function showChannelInfo() {
+                elements.channelInfo.style.display = 'block';
+                setTimeout(() => {
+                    elements.channelInfo.style.opacity = '0.7';
+                }, 2000);
+            }
+
+            // إعداد أزرار التحكم
+            function setupControls() {
+                // تشغيل/إيقاف
+                elements.playPauseBtn.addEventListener('click', () => {
+                    if (elements.player.paused()) {
+                        elements.player.play();
+                        feather.replace();
+                    } else {
+                        elements.player.pause();
+                        feather.replace();
+                    }
+                });
+
+                // تحديث أيقونة التشغيل
+                elements.player.on('play', () => {
+                    elements.playPauseBtn.innerHTML = '<i data-feather="pause"></i>';
+                    feather.replace();
+                });
+
+                elements.player.on('pause', () => {
+                    elements.playPauseBtn.innerHTML = '<i data-feather="play"></i>';
+                    feather.replace();
+                });
+
+                // ملء الشاشة
+                elements.fullscreenBtn.addEventListener('click', () => {
+                    if (elements.player.isFullscreen()) {
+                        elements.player.exitFullscreen();
+                    } else {
+                        elements.player.requestFullscreen();
+                    }
+                });
+
+                // كتم الصوت
+                elements.muteBtn.addEventListener('click', () => {
+                    elements.player.muted(!elements.player.muted());
+                    feather.replace();
+                });
+
+                // تحديث أيقونة الصوت
+                elements.player.on('volumechange', () => {
+                    const icon = elements.player.muted() ? 'volume-x' : 'volume-2';
+                    elements.muteBtn.innerHTML = `<i data-feather="${icon}"></i>`;
+                    feather.replace();
+                });
+
+                // إعادة المحاولة
+                elements.retryBtn.addEventListener('click', () => {
+                    hideError();
+                    const activeBtn = document.querySelector('.channel-btn.active');
+                    if (activeBtn) {
+                        const index = Array.from(document.querySelectorAll('.channel-btn')).indexOf(activeBtn);
+                        loadChannelFast(index);
+                    }
+                });
+            }
+
+            // اختصارات لوحة المفاتيح
+            function setupKeyboardShortcuts() {
+                document.addEventListener('keydown', (e) => {
+                    // مسافة للعب/إيقاف
+                    if (e.code === 'Space' && e.target === document.body) {
+                        e.preventDefault();
+                        if (elements.player.paused()) {
+                            elements.player.play();
+                        } else {
+                            elements.player.pause();
+                        }
+                    }
+                    
+                    // F للملء الشاشة
+                    if (e.code === 'KeyF') {
+                        e.preventDefault();
+                        if (elements.player.isFullscreen()) {
+                            elements.player.exitFullscreen();
+                        } else {
+                            elements.player.requestFullscreen();
+                        }
+                    }
+                    
+                    // C لقائمة القنوات
+                    if (e.code === 'KeyC') {
+                        e.preventDefault();
+                        toggleChannels();
+                    }
+                    
+                    // ESC لإغلاق القوائم
+                    if (e.code === 'Escape') {
+                        elements.channelsPanel.classList.remove('show');
+                    }
+                });
+            }
+
+            // بدء التشغيل
+            function startPlayer() {
+                console.log('🚀 بدء تشغيل المشغل السريع...');
+                
+                // تهيئة Video.js
+                initVideoPlayer();
+                
+                // إنشاء قائمة القنوات
+                createChannelsList();
+                
+                // إعداد التحكم
+                setupControls();
+                
+                // إعداد اختصارات لوحة المفاتيح
+                setupKeyboardShortcuts();
+                
+                // تحميل القناة الأولى فوراً
+                setTimeout(() => {
+                    loadChannelFast(0);
+                }, 100);
+                
+                // تحديث Feather Icons
+                feather.replace();
+                
+                // إخفاء شاشة التحميل بعد وقت قصير
+                setTimeout(hideLoader, 2000);
+                
+                console.log('✅ المشغل السريع جاهز!');
+            }
+
+            // أحداث الأزرار
+            elements.channelsToggle.addEventListener('click', toggleChannels);
+
+            // إغلاق القائمة عند النقر خارجها
+            document.addEventListener('click', (e) => {
+                if (!elements.channelsPanel.contains(e.target) && 
+                    !elements.channelsToggle.contains(e.target)) {
+                    elements.channelsPanel.classList.remove('show');
+                }
+            });
+
+            // بدء تشغيل المشغل
+            startPlayer();
+        });
+    </script>
+</body>
+</html>
